@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Admin panel</title>
+<script src="config.js"></script>
+<style>
+  :root { --bg:#f4f5f7; --card:#fff; --text:#1c1c1e; --hint:#6b7280; --line:#e5e7eb; --accent:#2a6df4; --danger:#d92d20; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#16181d; --card:#20232a; --text:#f1f1f3; --hint:#9aa0ab; --line:#2f333b; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 16px; }
+  .card { background:var(--card); border-radius:14px; padding:16px; margin-bottom:14px; }
+  h1 { font-size: 22px; margin: 4px 0 14px; }
+  h2 { font-size: 17px; margin: 0 0 12px; }
+  label { display:block; font-size:13px; color:var(--hint); margin: 10px 0 4px; }
+  input, textarea { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--text); font: inherit; }
+  textarea { min-height: 120px; resize: vertical; }
+  #chapters { min-height: 280px; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+  input[type=color] { padding: 2px; height: 42px; }
+  input[type=checkbox] { width:auto; margin-right:8px; }
+  .row { display:flex; gap:10px; } .row > div { flex:1; }
+  button { padding:10px 16px; border:0; border-radius:10px; background:var(--accent); color:#fff; font: inherit; font-size:14px; cursor:pointer; }
+  button.ghost { background:var(--bg); color:var(--text); border:1px solid var(--line); }
+  button.danger { background:var(--danger); }
+  .tabs { display:flex; gap:8px; margin-bottom:14px; flex-wrap: wrap; }
+  .tabs button { background:var(--card); color:var(--text); }
+  .tabs button.on { background:var(--accent); color:#fff; }
+  .item { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line); }
+  .item:last-child { border-bottom:0; }
+  .item .t { flex:1; min-width:0; } .item .t b { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .item .t small { color:var(--hint); }
+  .item button { padding:7px 11px; font-size:13px; }
+  .msg { padding:10px 12px; border-radius:10px; margin-bottom:12px; font-size:14px; background:#e7f6ec; color:#14532d; }
+  .msg.err { background:#fde8e8; color:#7f1d1d; }
+  .hidden { display:none !important; }
+  .hint { color:var(--hint); font-size:13px; line-height:1.5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>⚙️ Admin panel</h1>
+  <div id="msg" class="msg hidden"></div>
+
+  <!-- Kirish -->
+  <div id="login" class="card">
+    <h2>Kirish</h2>
+    <label>Email</label><input id="email" type="email" autocomplete="username">
+    <label>Parol</label><input id="pw" type="password" autocomplete="current-password">
+    <p><button id="loginBtn">Kirish</button></p>
+  </div>
+
+  <!-- Panel -->
+  <div id="panel" class="hidden">
+    <div class="tabs">
+      <button data-tab="list" class="on">Kitoblar</button>
+      <button data-tab="form">Yangi kitob</button>
+      <button data-tab="design">Dizayn</button>
+      <button id="logout" class="ghost">Chiqish</button>
+    </div>
+
+    <div id="tab-list" class="card"><h2>Barcha kitoblar</h2><div id="items"></div></div>
+
+    <div id="tab-form" class="card hidden">
+      <h2 id="formTitle">Yangi kitob qo'shish</h2>
+      <input id="bid" type="hidden">
+      <label>Kitob nomi *</label><input id="title">
+      <div class="row">
+        <div><label>Muallif</label><input id="author"></div>
+        <div><label>Kategoriya</label><input id="category" placeholder="Masallar, Hikoyalar..."></div>
+      </div>
+      <div class="row">
+        <div><label>Emoji</label><input id="emoji" placeholder="📖"></div>
+        <div><label>Muqova rangi</label><input id="color" type="color" value="#1864ab"></div>
+      </div>
+      <label>Qisqa tavsif</label><textarea id="description" style="min-height:80px"></textarea>
+      <label>Boblar</label>
+      <textarea id="chapters" placeholder="### 1-bob nomi&#10;Matn shu yerda. Abzatslar bo'sh qator bilan ajratiladi.&#10;&#10;Ikkinchi abzats.&#10;&#10;### 2-bob nomi&#10;Keyingi bob matni..."></textarea>
+      <p class="hint">Har bir bob <b>### Bob nomi</b> qatori bilan boshlanadi. Pastiga shu bobning matnini qo'ying.</p>
+      <label><input id="published" type="checkbox" checked>Ilovada ko'rsatish (e'lon qilish)</label>
+      <p><button id="saveBook">Saqlash</button> <button id="cancelEdit" class="ghost">Tozalash</button></p>
+    </div>
+
+    <div id="tab-design" class="card hidden">
+      <h2>Ilova ko'rinishi</h2>
+      <label>Sarlavha</label><input id="s_title">
+      <label>Tagsarlavha</label><input id="s_sub">
+      <label>Asosiy rang (tugmalar, e'lon)</label><input id="s_color" type="color" value="#2a6df4">
+      <label>E'lon matni (bosh sahifada rangli banner; bo'sh qoldirsangiz ko'rinmaydi)</label>
+      <textarea id="s_notice" style="min-height:70px"></textarea>
+      <p><button id="saveDesign">Saqlash</button></p>
+      <p class="hint">O'zgarishlar foydalanuvchilarda ilovani qayta ochganda ko'rinadi.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const C = window.APP_CONFIG || {}, U = C.SUPABASE_URL, K = C.SUPABASE_ANON_KEY;
+const $ = id => document.getElementById(id);
+let S = null;
+try { S = JSON.parse(localStorage.getItem("adm") || "null"); } catch (e) {}
+
+function msg(text, err) {
+  const m = $("msg");
+  m.textContent = text; m.className = "msg" + (err ? " err" : "");
+  clearTimeout(msg.t); msg.t = setTimeout(() => m.classList.add("hidden"), 5000);
+}
+function keep(d) {
+  S = { access: d.access_token, refresh: d.refresh_token, exp: Date.now() + d.expires_in * 1000 - 60000 };
+  try { localStorage.setItem("adm", JSON.stringify(S)); } catch (e) {}
+}
+async function auth(grant, body) {
+  const r = await fetch(U + "/auth/v1/token?grant_type=" + grant, {
+    method: "POST", headers: { apikey: K, "Content-Type": "application/json" }, body: JSON.stringify(body)
+  });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error_description || d.msg || "Kirish xatosi");
+  keep(d);
+}
+async function token() {
+  if (!S) throw new Error("Kirilmagan");
+  if (Date.now() > S.exp) await auth("refresh_token", { refresh_token: S.refresh });
+  return S.access;
+}
+async function api(path, { method = "GET", body, prefer } = {}) {
+  const r = await fetch(U + "/rest/v1/" + path, {
+    method,
+    headers: { apikey: K, Authorization: "Bearer " + await token(), "Content-Type": "application/json", ...(prefer ? { Prefer: prefer } : {}) },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const t = await r.text();
+  const d = t ? JSON.parse(t) : null;
+  if (!r.ok) throw new Error((d && d.message) || "Xato " + r.status);
+  return d;
+}
+
+function parseChapters(raw) {
+  const out = []; let cur = null;
+  raw.split("\n").forEach(line => {
+    const m = line.match(/^###\s*(.+)$/);
+    if (m) { cur = { title: m[1].trim(), text: "" }; out.push(cur); }
+    else if (cur) cur.text += line + "\n";
+  });
+  return out.map(c => ({ title: c.title, text: c.text.trim() })).filter(c => c.text);
+}
+const chaptersToText = ch => (ch || []).map(c => "### " + c.title + "\n" + c.text).join("\n\n");
+
+function tab(name) {
+  ["list", "form", "design"].forEach(n => $("tab-" + n).classList.toggle("hidden", n !== name));
+  document.querySelectorAll(".tabs [data-tab]").forEach(b => b.classList.toggle("on", b.dataset.tab === name));
+}
+document.querySelectorAll(".tabs [data-tab]").forEach(b => b.onclick = () => {
+  if (b.dataset.tab === "form" && !$("bid").value) clearForm();
+  tab(b.dataset.tab);
+});
+
+function clearForm() {
+  ["bid", "title", "author", "category", "emoji", "description", "chapters"].forEach(i => $(i).value = "");
+  $("color").value = "#1864ab"; $("published").checked = true;
+  $("formTitle").textContent = "Yangi kitob qo'shish";
+}
+$("cancelEdit").onclick = clearForm;
+
+function editBook(b) {
+  $("bid").value = b.id; $("title").value = b.title; $("author").value = b.author || "";
+  $("category").value = b.category || ""; $("emoji").value = b.emoji || "";
+  $("color").value = /^#[0-9a-fA-F]{6}$/.test(b.color) ? b.color : "#1864ab";
+  $("description").value = b.description || ""; $("chapters").value = chaptersToText(b.chapters);
+  $("published").checked = !!b.published;
+  $("formTitle").textContent = "Tahrirlash: " + b.title;
+  tab("form"); window.scrollTo(0, 0);
+}
+
+async function loadList() {
+  const rows = await api("books?select=*&order=created_at.desc");
+  const box = $("items"); box.replaceChildren();
+  if (!rows.length) { box.textContent = "Hali kitob yo'q. «Yangi kitob» bo'limidan qo'shing."; return; }
+  rows.forEach(b => {
+    const row = document.createElement("div"); row.className = "item";
+    const t = document.createElement("div"); t.className = "t";
+    const bt = document.createElement("b"); bt.textContent = (b.emoji || "📖") + " " + b.title;
+    const sm = document.createElement("small");
+    sm.textContent = (b.author || "—") + " · " + (b.chapters || []).length + " bob · " + (b.published ? "e'lon qilingan" : "qoralama");
+    t.append(bt, sm);
+    const bEdit = document.createElement("button"); bEdit.className = "ghost"; bEdit.textContent = "Tahrir";
+    bEdit.onclick = () => editBook(b);
+    const bPub = document.createElement("button"); bPub.className = "ghost"; bPub.textContent = b.published ? "Yashirish" : "E'lon qilish";
+    bPub.onclick = async () => {
+      try { await api("books?id=eq." + b.id, { method: "PATCH", body: { published: !b.published } }); loadList(); }
+      catch (e) { msg(e.message, true); }
+    };
+    const bDel = document.createElement("button"); bDel.className = "danger"; bDel.textContent = "O'chirish";
+    bDel.onclick = async () => {
+      if (!confirm("«" + b.title + "» o'chirilsinmi? Qaytarib bo'lmaydi.")) return;
+      try { await api("books?id=eq." + b.id, { method: "DELETE" }); msg("O'chirildi"); loadList(); }
+      catch (e) { msg(e.message, true); }
+    };
+    row.append(t, bEdit, bPub, bDel); box.append(row);
+  });
+}
+
+$("saveBook").onclick = async () => {
+  const title = $("title").value.trim();
+  const chapters = parseChapters($("chapters").value);
+  if (!title) return msg("Kitob nomini yozing", true);
+  if (!chapters.length) return msg("Kamida bitta bob kerak: «### Bob nomi» qatori va uning ostida matn.", true);
+  const body = {
+    title, author: $("author").value.trim(), category: $("category").value.trim() || "Kitoblar",
+    emoji: $("emoji").value.trim() || "📖", color: $("color").value,
+    description: $("description").value.trim(), chapters, published: $("published").checked
+  };
+  try {
+    const id = $("bid").value;
+    if (id) await api("books?id=eq." + id, { method: "PATCH", body });
+    else await api("books", { method: "POST", body });
+    msg(id ? "Yangilandi ✅" : "Kitob qo'shildi ✅");
+    clearForm(); await loadList(); tab("list");
+  } catch (e) { msg(e.message, true); }
+};
+
+async function loadDesign() {
+  const rows = await api("settings?select=key,value");
+  const s = Object.fromEntries(rows.map(r => [r.key, r.value]));
+  $("s_title").value = s.app_title || ""; $("s_sub").value = s.app_subtitle || "";
+  $("s_color").value = /^#[0-9a-fA-F]{6}$/.test(s.accent_color) ? s.accent_color : "#2a6df4";
+  $("s_notice").value = s.notice || "";
+}
+$("saveDesign").onclick = async () => {
+  try {
+    await api("settings?on_conflict=key", {
+      method: "POST", prefer: "resolution=merge-duplicates",
+      body: [
+        { key: "app_title", value: $("s_title").value.trim() },
+        { key: "app_subtitle", value: $("s_sub").value.trim() },
+        { key: "accent_color", value: $("s_color").value },
+        { key: "notice", value: $("s_notice").value.trim() }
+      ]
+    });
+    msg("Dizayn saqlandi ✅");
+  } catch (e) { msg(e.message, true); }
+};
+
+async function enter() {
+  $("login").classList.add("hidden"); $("panel").classList.remove("hidden");
+  await Promise.all([loadList(), loadDesign()]);
+}
+$("loginBtn").onclick = async () => {
+  try { await auth("password", { email: $("email").value.trim(), password: $("pw").value }); await enter(); }
+  catch (e) { msg(e.message, true); }
+};
+$("logout").onclick = () => {
+  S = null; try { localStorage.removeItem("adm"); } catch (e) {}
+  $("panel").classList.add("hidden"); $("login").classList.remove("hidden");
+};
+
+if (!U || !K) {
+  msg("config.js ichiga Supabase URL va anon kalitni yozing.", true);
+  $("loginBtn").disabled = true;
+} else if (S) {
+  enter().catch(() => { $("panel").classList.add("hidden"); $("login").classList.remove("hidden"); });
+}
+</script>
+</body>
+</html>

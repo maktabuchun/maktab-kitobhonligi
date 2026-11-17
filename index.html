@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Maktab kitobxonligi</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="config.js"></script>
+<style>
+  :root {
+    --bg: var(--tg-theme-bg-color, #ffffff);
+    --text: var(--tg-theme-text-color, #1c1c1e);
+    --hint: var(--tg-theme-hint-color, #7d7d85);
+    --card: var(--tg-theme-secondary-bg-color, #f2f2f7);
+    --accent: var(--tg-theme-button-color, #2a6df4);
+    --accent-text: #ffffff;
+  }
+  * { box-sizing: border-box; margin: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding-bottom: 32px; }
+  .hidden { display: none !important; }
+  header { padding: 18px 16px 8px; }
+  h1 { font-size: 22px; }
+  header p { color: var(--hint); font-size: 14px; margin-top: 4px; }
+  .tools { padding: 8px 16px; position: sticky; top: 0; background: var(--bg); z-index: 2; }
+  input[type=search] { width: 100%; padding: 11px 14px; border-radius: 12px; border: 0; background: var(--card); color: var(--text); font-size: 15px; }
+  .cats { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0 2px; }
+  .cat { flex: none; padding: 7px 14px; border-radius: 20px; border: 0; background: var(--card); color: var(--text); font-size: 14px; }
+  .cat.on { background: var(--accent); color: var(--accent-text); }
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; padding: 10px 16px; }
+  @media (min-width: 560px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+  .book { background: none; border: 0; text-align: left; color: inherit; padding: 0; cursor: pointer; }
+  .cover { aspect-ratio: 3/4; border-radius: 10px; display: flex; flex-direction: column; justify-content: space-between; padding: 12px; color: #fff; position: relative; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+  .cover b { font-size: 16px; line-height: 1.25; }
+  .cover span { font-size: 12px; opacity: .9; }
+  .badge { position: absolute; top: 8px; right: 8px; background: #ff3b30; color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+  .bt { font-size: 14px; margin-top: 8px; font-weight: 600; }
+  .ba { font-size: 12px; color: var(--hint); }
+  .empty { padding: 40px 16px; text-align: center; color: var(--hint); }
+  .notice { margin: 8px 16px 0; padding: 12px 14px; border-radius: 12px; background: var(--accent); color: var(--accent-text); font-size: 14px; line-height: 1.4; }
+
+  /* book details + reader */
+  .page { padding: 16px; max-width: 720px; margin: 0 auto; }
+  .page h2 { font-size: 22px; margin-bottom: 4px; }
+  .meta { color: var(--hint); font-size: 14px; margin-bottom: 12px; }
+  .desc { line-height: 1.5; margin-bottom: 16px; }
+  .chap { display: block; width: 100%; text-align: left; padding: 14px; margin-bottom: 8px; border: 0; border-radius: 12px; background: var(--card); color: var(--text); font-size: 15px; }
+  .chap small { color: var(--hint); }
+  .bar { display: flex; gap: 8px; margin-bottom: 14px; }
+  .bar button, .nav button { padding: 9px 14px; border: 0; border-radius: 10px; background: var(--card); color: var(--text); font-size: 14px; }
+  .text { font-family: Georgia, "Times New Roman", serif; line-height: 1.75; font-size: 18px; }
+  .text p { margin-bottom: 1em; }
+  .nav { display: flex; justify-content: space-between; margin-top: 24px; }
+  .nav .primary { background: var(--accent); color: var(--accent-text); }
+</style>
+</head>
+<body>
+
+<section id="home">
+  <header>
+    <h1 id="appTitle">📚 Kitoblar</h1>
+    <p id="appSub">O'zbekcha tarjimadagi qiziqarli kitoblar</p>
+  </header>
+  <div class="notice hidden" id="notice"></div>
+  <div class="tools">
+    <input id="q" type="search" placeholder="Kitob yoki muallif qidirish">
+    <div class="cats" id="cats"></div>
+  </div>
+  <div class="grid" id="grid"></div>
+  <div class="empty hidden" id="empty">Hech narsa topilmadi.</div>
+</section>
+
+<section id="detail" class="page hidden"></section>
+<section id="reader" class="page hidden"></section>
+
+<script>
+const tg = window.Telegram.WebApp;
+tg.ready(); tg.expand();
+
+let BOOKS = [], cat = "Hammasi", cur = null, chapIdx = 0, fontSize = 18;
+try { fontSize = +localStorage.getItem("fs") || 18; } catch (e) {}
+const $ = id => document.getElementById(id);
+const isNew = b => b.added && (Date.now() - new Date(b.added)) < 30 * 86400000;
+
+function show(name) {
+  ["home", "detail", "reader"].forEach(n => $(n).classList.toggle("hidden", n !== name));
+  window.scrollTo(0, 0);
+  if (name === "home") tg.BackButton.hide(); else tg.BackButton.show();
+}
+tg.BackButton.onClick(() => {
+  if (!$("reader").classList.contains("hidden")) openBook(cur); else show("home");
+});
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function renderHome() {
+  const q = $("q").value.trim().toLowerCase();
+  const cats = ["Hammasi", ...new Set(BOOKS.map(b => b.category).filter(Boolean))];
+  $("cats").replaceChildren(...cats.map(c => {
+    const b = el("button", "cat" + (c === cat ? " on" : ""), c);
+    b.onclick = () => { cat = c; renderHome(); };
+    return b;
+  }));
+  const list = BOOKS
+    .filter(b => cat === "Hammasi" || b.category === cat)
+    .filter(b => (b.title + " " + b.author).toLowerCase().includes(q))
+    .sort((a, b) => (b.added || "").localeCompare(a.added || ""));
+  $("empty").classList.toggle("hidden", list.length > 0);
+  $("grid").replaceChildren(...list.map(b => {
+    const card = el("button", "book");
+    const cover = el("div", "cover");
+    cover.style.background = b.color || "#3b5bdb";
+    cover.append(el("span", "", b.emoji || "📖"), el("b", "", b.title), el("span", "", b.author));
+    if (isNew(b)) cover.append(el("div", "badge", "Yangi"));
+    card.append(cover);
+    card.onclick = () => openBook(b);
+    return card;
+  }));
+}
+
+function openBook(b) {
+  cur = b;
+  const d = $("detail");
+  d.replaceChildren(
+    el("h2", "", b.title),
+    el("div", "meta", b.author + " · " + (b.category || "Kitob")),
+    el("p", "desc", b.description || "")
+  );
+  b.chapters.forEach((c, i) => {
+    const btn = el("button", "chap", c.title);
+    btn.onclick = () => openChapter(i);
+    d.append(btn);
+  });
+  show("detail");
+}
+
+function openChapter(i) {
+  chapIdx = i;
+  const c = cur.chapters[i], r = $("reader");
+  const bar = el("div", "bar");
+  const minus = el("button", "", "A−"), plus = el("button", "", "A+");
+  const text = el("div", "text");
+  text.style.fontSize = fontSize + "px";
+  const setSize = d => {
+    fontSize = Math.min(28, Math.max(14, fontSize + d));
+    text.style.fontSize = fontSize + "px";
+    try { localStorage.setItem("fs", fontSize); } catch (e) {}
+  };
+  minus.onclick = () => setSize(-2); plus.onclick = () => setSize(2);
+  bar.append(minus, plus);
+  c.text.split(/\n\s*\n/).forEach(p => text.append(el("p", "", p.trim())));
+  const nav = el("div", "nav");
+  const prev = el("button", "", "‹ Oldingi"), next = el("button", "primary", "Keyingi ›");
+  prev.onclick = () => openChapter(i - 1); next.onclick = () => openChapter(i + 1);
+  nav.append(i > 0 ? prev : el("span"), i < cur.chapters.length - 1 ? next : el("span"));
+  r.replaceChildren(el("div", "meta", cur.title), el("h2", "", c.title), bar, text, nav);
+  show("reader");
+}
+
+$("q").oninput = renderHome;
+
+const C = window.APP_CONFIG || {};
+const useDb = !!(C.SUPABASE_URL && C.SUPABASE_ANON_KEY);
+
+async function db(path) {
+  const r = await fetch(C.SUPABASE_URL + "/rest/v1/" + path, {
+    headers: { apikey: C.SUPABASE_ANON_KEY, Authorization: "Bearer " + C.SUPABASE_ANON_KEY }
+  });
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+function applySettings(s) {
+  if (s.app_title) $("appTitle").textContent = s.app_title;
+  if (s.app_subtitle) $("appSub").textContent = s.app_subtitle;
+  if (/^#[0-9a-fA-F]{6}$/.test(s.accent_color || "")) {
+    document.documentElement.style.setProperty("--accent", s.accent_color);
+  }
+  if (s.notice) { $("notice").textContent = s.notice; $("notice").classList.remove("hidden"); }
+}
+
+async function load() {
+  try {
+    if (useDb) {
+      const [books, sets] = await Promise.all([
+        db("books?select=*&published=eq.true&order=created_at.desc"),
+        db("settings?select=key,value")
+      ]);
+      applySettings(Object.fromEntries(sets.map(s => [s.key, s.value])));
+      BOOKS = books.map(b => ({ ...b, added: b.created_at }));
+    } else {
+      BOOKS = await (await fetch("books.json?v=" + Date.now())).json();
+    }
+    renderHome();
+  } catch (e) {
+    $("empty").textContent = "Kitoblarni yuklab bo'lmadi. Keyinroq urinib ko'ring.";
+    $("empty").classList.remove("hidden");
+  }
+}
+load();
+</script>
+</body>
+</html>
